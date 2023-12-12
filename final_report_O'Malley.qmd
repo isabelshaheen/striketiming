@@ -1,0 +1,253 @@
+---
+title: "Hot Labor Summer: A historical analysis of major strike timing in the US"
+author: "Isabel Shaheen O'Malley"
+subtitle: "December 13, 2023"
+format: html
+editor: visual
+bibliography: references.bib
+---
+
+## Introduction
+
+The summer of 2023 was termed a "summer of strikes" in mainstream media, or "hot labor summer" on social media. There were strikes from 65,000 workers of SAG-AFTRA, 15,000 of Unite Here Local 11, 11,500 of the Writers Guild, and workers in many other industries [@escobar2023]. This led me to wonder, has summer been a common time to strike in prior years? As I began researching this, I did not find evidence of whether time of year has been an important factor in strike activity among the organized labor movement overall in the US. In other words, it is not clear to me if there are popular "strike seasons" in US labor history.
+
+A workforce's decision of when to strike, if they are legally allowed to strike at all, is complex. It can be influenced by state and federal labor law (e.g., mandating cooling off periods), or a union's interpretation of how well contract negotiations are going. It is clear that strikes often occur after contracts expire. For instance, UAW president Shawn Fain called for unions to align their contract expiration dates for May 1, 2028, to allow for a coordinated general strike on May Day [@dimaggio2023]. Company or industry specific operations timelines are also relevant to strike timing, as removing labor at the times when critical and urgent functions are performed will have the greatest impact on the employer. For example, academic strikes in Higher Education have targeted the grading periods at the end of semesters [@eastwood2023], and for the past two years Starbucks workers have struck on Nov 16 "Red Cup Day", Starbucks' biggest promotional event of the year [@benveniste2023].
+
+Recent reports of changes in strike activity over time define strike activity as the number of workers involved [@bivens2023], and look at changes over years or decades. In a New York Times visualization of BLS work stoppage data [@escobar2023], "each line shows the number of U.S. workers involved in work stoppages by month over the course of a year." By scanning the data for each year, it appears that the number of workers on strike is often concentrated in the middle months of the calendar year. I have not found research that has explored this by collapsing the data across years. In this study I will focus on monthly changes in strike activity, defined as the number of strikes started, the number of strikes occurring, and the days of idleness per month.
+
+**Research Questions**
+
+1.  What months have been most popular for large strikes in the US?
+2.  Is there a significant correlation between time of year and strike activity in the US?
+
+## Methods
+
+All files to reproduce the current study are available on the following GitHub page: <https://github.com/isabelshaheen/striketiming.git>. Data come from the Bureau of Labor Statistics (BLS) Work Stoppages Program survey. This monthly survey contains national aggregate counts of major work stoppages, including only those involving 1,000 workers or more. I am conceptualizing "major work stoppages" as a proxy for "major strikes", following the work of others [@bivens2023], who argue that this is reasonable because BLS does not distinguish between strikes and lockouts in its work stoppage data, and lockouts are very rare relative to strikes. The indicators of strike activity that I focus on in this study are:
+
+1.  Number of work stoppages involving 1,000 workers or more **beginning** in the period
+2.  Number of work stoppages involving 1,000 workers or more **in effect** in the period
+3.  Days of idleness (in 1,000s) from all work stoppages in effect in the period
+
+**Data**
+
+I obtained the data from the BLS API with the R package `blsR`. I used data from all years of the survey that are available in the BLS API: 1982 to 2023. Retrieving the three indicators above for each month over 41 years yielded a dataset with 502 observations of five variables.
+
+```{r setup, echo=FALSE, message = FALSE}
+#Set Global Options
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+```
+
+```{r}
+#Install packages
+if(!require(devtools)) install.packages('devtools') 
+library(devtools)
+if(!require(blsR)) install.packages('blsR')
+if(!require(plotly)) install.packages("plotly")
+if(!require(tidystats)) install.packages("tidystats")
+if(!require(broom)) install.packages("broom")
+if(!require(expss)) install.packages("expss")
+```
+
+```{r}
+#Load libraries
+library(dplyr)
+library(blsR)
+library(ggplot2)
+library(tidyverse)
+library(plotly)
+library(tidystats)
+library(broom)
+library(expss)
+```
+
+```{r, results = "hide"}
+# Check if key is found
+bls_has_key()
+  
+# Retrieve the key
+bls_get_key()
+
+```
+
+```{r}
+#Define function: get_series_table
+
+get_series_table <- function(
+  series_id, api_key = bls_get_key(),
+  start_year=NULL, end_year=NULL, year_limit=NULL, parse_values=TRUE, ...
+  ){
+
+  if(!rlang::is_scalar_character(api_key)) year_limit <- 10
+
+  series <- get_series(series_id, start_year, end_year, year_limit, api_key=api_key, ...)
+  if(length(series$data) > 0)
+    return(data_as_table(series$data, parse_values))
+
+  NA
+}
+```
+
+```{r}
+#Request a single series (WSU100) as a tibble from the Work Stoppages Survey 
+
+#Get data
+df100 <- get_series_table('WSU100', start_year = 1982, end_year = 2023)
+
+#Rename variables
+df100 <- df100 %>%
+  rename(strikes_started = value,
+         month = period,
+         monthName = periodName)
+
+#Request a single series (WSU200) as a tibble from the Work Stoppages Survey
+
+#Get data
+df200 <- get_series_table('WSU200', start_year = 1982, end_year = 2023)
+
+#Rename variables
+df200 <- df200 %>%
+  rename(strikes_occurring = value,
+         month = period,
+         monthName = periodName)
+
+#Request a single series (WSU001) as a tibble from the Work Stoppages Survey
+
+#Get data
+df001 <- get_series_table('WSU001', start_year = 1982, end_year = 2023)
+
+#Rename variables
+df001 <- df001 %>%
+  rename(idle_days = value,
+         month = period,
+         monthName = periodName)
+```
+
+```{r, eval = FALSE}
+# Label values of month for figures 
+
+df100 = apply_labels(df100,
+                     month = c("Jan." = "M01",
+                               "Feb." = "M02",
+                               "March" = "M03",
+                               "April" = "M04",
+                               "May" = "M05",
+                               "June" = "M06",
+                               "July" = "M07",
+                               "Aug." = "M08",
+                               "Sep." = "M09",
+                               "Oct." = "M10",
+                               "Nov." = "M11",
+                               "Dec." = "M12"))
+
+```
+
+## Visualizations
+
+To help answer the first question - what months are most popular for large strikes in the US - I created a stacked bar graph for each of the indicators. Hovering over a data point on the graph allows the reader to see the number of strikes that began or occurred in a given month and year.
+
+### Figure 1. Number of work stoppages involving 1,000 workers or more **beginning** in the month (1982 - 2023)
+
+```{r}
+# Create a stacked bar graph 
+fig1 <- ggplot(df100, aes(x = month, y = strikes_started, z = year)) +
+  geom_bar(stat = "identity", position = "stack", fill = "lightblue") +
+  labs(x = "Month",
+       y = "Number of strikes started",
+       z = "Year") +
+  theme_minimal()
+
+# Plot interactive graph 
+library(plotly)
+ggplotly(fig1)
+```
+
+### Figure 2. Number of work stoppages involving 1,000 workers or more **in effect** in the month (1982-2023)
+
+```{r}
+# Create a stacked bar graph 
+fig2 <- ggplot(df200, aes(x = month, y = strikes_occurring, z = year)) +
+  geom_bar(stat = "identity", position = "stack", fill = "orange") +
+  labs(x = "Month",
+       y = "Number of strikes in effect",
+       z = "Year") +
+  theme_minimal()
+
+#Plot interactive graph 
+library(plotly)
+ggplotly(fig2)
+```
+
+### Figure 3. Days of idleness (in 1,000s) from all work stoppages in effect in the month (1982 - 2023)
+
+```{r}
+library(plotly)
+
+# Create a stacked bar graph 
+fig3 <- ggplot(df001, aes(x = month, y = idle_days, z = year)) +
+  geom_bar(stat = "identity", position = "stack", fill = "darkgreen") +
+  labs(x = "Month",
+       y = "Days of idleness in 1,000s",
+       z = "Year") +
+  theme_minimal()
+
+#Plot interactive graph 
+ggplotly(fig3)
+```
+
+## Exploratory Analysis
+
+**Correlations**
+
+To answer the second question, "Is there a significant correlation between time of year and strike activity in the US?", I ran correlations between month and the three strike activity indicators. I used the Kruskal-Wallis rank sum test to calculate the correlations because the indicators are all continuous variables and month is categorical. Wilcoxon signed rank pairwise tests were carried out for the 12 pairs of months.
+
+**Strikes Starting.** There was very strong evidence of a difference (p-value \< 0.0001 ) between the mean ranks of at least one pair of months. There was strong evidence of differences (p-value \< 0.05 , adjusted using the Bonferroni correction) between many of the month pairs. For instance, January differed significantly from March (p = .02), April (p = .003), April (p = .005), June (p = .004), August (p = .007), September (p \<.0001), and October (p = .01).
+
+```{r, results = "hide"}
+#Run correlations with Kruskal-Wallis test 
+cor1 <- kruskal.test(strikes_started ~ month, data = df100)
+
+#To find out which pair of months has a difference, run pairwise Wilcoxon comparisons for each pair of months 
+pairwise.wilcox.test(df100$strikes_started, df100$month, p.adj='bonferroni', exact = FALSE)
+
+```
+
+**Strikes Occurring.** There was strong evidence of a difference (p-value \< 0.001) between the mean ranks of at least one pair of months. Yet the evidence of differences (p-value \< .05, adjusted using the Bonferroni correction) was between only two of the month pairs: January differed significantly from September (p = .01) and October (p = .02).
+
+```{r, results = "hide"}
+#Run correlations with Kruskal-Wallis test 
+cor2 <- kruskal.test(strikes_occurring ~ month, data = df200)
+
+#To find out which pair of months has a difference, run pairwise Wilcoxon comparisons for each pair of months 
+pairwise.wilcox.test(df200$strikes_occurring, df200$month, p.adj='bonferroni', exact = FALSE)
+
+```
+
+**Days of Idleness.** There was evidence of a difference (p-value = 0.035) between the mean ranks of at least one pair of months. However after using the Bonferroni correction, the evidence of differences was not significant at p \< .05 or p \< .01.
+
+```{r, results = "hide"}
+#Run correlations with Kruskal-Wallis test 
+cor3 <- kruskal.test(idle_days ~ month, data = df001)
+
+#To find out which pair of months has a difference, run pairwise Wilcoxon comparisons for each pair of months 
+pairwise.wilcox.test(df001$idle_days, df001$month, p.adj='bonferroni', exact = FALSE)
+```
+
+## Conclusion
+
+Based on my correlation analysis and visualization of large strikes from 1982 - 2023, the results suggest a clear trend between time of year and strike initiation, but suggest either no trend or only a small trend between time of year and strike continuation. Strikes were more commonly started in the summer months (May through September) than the winter months (November through March). Yet the number of strikes in effect (i.e., occurring or continuing from a previous month) was not significantly higher in the summer months than the winter months, except for when comparing January to September and October. Although it might seem like there are generally more idle days from strikes in the summer months than in other seasons, the correlation analyses revealed no significant relationship between month and total days of idleness. This might be because five years account for the majority of strikes in August, and the graph collapses by year.
+
+**Limitations**
+
+A major limitation is that my dataset lacked indicators of other factors that are relevant to a strike's timing, such as contract expiration dates, sector (private or public) and most importantly, industry. I attempted to scrape industry data from the Current Employment Statistics Strike Report "[Strikes occurring during CES survey reference period, 1990-present](https://www.bls.gov/ces/publications/strike-history.htm)" which was not available in the API or elsewhere. Using `paths_allowed` resulted in the message "TRUE", but when I attempted to read the html page as an R object, I received an error message which indicated that scraping was not allowed on the page. The data from this report would be very helpful to have, because in addition to NAICS industry code, it also has data on the firms, locations, labor organization, strike beginning date and strike ending date.
+
+The BLS major work stoppages data undercount strike activity because they only include strikes of 1,000 workers or more that last at least one full shift. As Bivens and colleagues note [@bivens2023], over the past 30 years nearly 60% of private-sector workers were employed by firms with fewer than 1,000 employees [@bureauoflaborstatistics2023].
+
+Monthly counts of number of strikes started and number of strikes occurring are relatively one dimensional indicators of strike activity. Days of idleness from all work stoppages in effect in the period does not tell us the duration of the unique unions' strikes. Also, the month category is somewhat arbitrary. I chose this because only months were available as a variable in this series in the BLS API, and for the ease of exposition for this project. Using date - a continuous variable - would show a more precise picture of strike timing.
+
+Any discussion of potential explanations from the current results would be speculative, given that this analysis was a correlation analysis only and does not allow for causal inference. Even if we did have industry specific data, that would not tell us why certain industries tend to start strikes in certain months and not others. Understanding why strikes start and end when they do requires more in depth methods such as more specific survey questions, literature reviews, interviews, or archival analysis.
+
+**Future Work**
+
+I would like to find another way to get the industry data from the BLS website. It would also be interesting to get the contract expiration dates (or at least months) for the unions on strike during these periods, to describe the relationship between expiration and strike start date.
+
+The monthly and annual strike activity from the 1980s to 2023 has been much lower than in the 1930s-50s, likely due to the drop in union density [@bivens2023]. So in order to get enough variation by month, I chose a large timespan of years: 41 years, the full length of work stoppage data available in the BLS API. However, accessing data from 1920s to the 1970s would be helpful in seeing if there were any seasonal trends in strike activity when union density and annual strike activity was much higher.
