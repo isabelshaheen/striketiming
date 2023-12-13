@@ -1,0 +1,43 @@
+---
+title: "Scraping for final project"
+format: html
+editor: visual
+---
+
+# **Web Scraping**
+
+Install
+
+```{r}
+
+if(!require(robotstxt)) install.packages("robotstxt")
+if(!require(jsonlite)) install.packages("jsonlite")
+if(!require(RSocrata)) install.packages("RSocrata")
+
+library(jsonlite)
+library(robotstxt)
+library(RSocrata)
+library(xml2)
+library(rvest)
+```
+
+The ultimate goal is to gather the tables "Summary of strike activity during CES survey reference pay period, by month, \[year\]", combine them, and convert to a `data.frame`.
+
+**Check whether robots are allowed on the webpage**
+
+```{r}
+paths_allowed("https://www.bls.gov/ces/publications/strike-history.htm")
+```
+
+**As a first step, read in the html page as an R object.**
+
+```{r}
+url <- read_html("https://www.bls.gov/ces/publications/strike-history.htm")
+```
+
+**Extract the tables from this object (using the `rvest` package) and save the result as a new object.** Follow the instructions if there is an error.
+
+```{r}
+
+nds <- html_nodes(url, xpath =  '//th | //*[contains(concat( " ", @class, " " ), concat( " ", "sub0", " " ))] | //*[contains(concat( " ", @class, " " ), concat( " ", "regular", " " ))]//td | //*[contains(concat( " ", @class, " " ), concat( " ", "tableTitle", " " ))]')
+```
