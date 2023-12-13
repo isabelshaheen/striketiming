@@ -6,4 +6,4 @@ Open the .qmd file in RStudio and render to html to see the interactive features
 
 Note. You will need a unique key to access the BLS API 2.0 and run the .qmd file. 
 You can register for a key here: https://data.bls.gov/registrationEngine/  
-See BLS_key.R for instructions on setting your key. 
+For instructions on setting your key, see file "BLS_key.R" (created by the BLS). 
