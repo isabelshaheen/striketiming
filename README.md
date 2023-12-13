@@ -1,6 +1,7 @@
 
+"final_report_O'Malley.pdf" contains the full report with static visuals 
 
-"final_report_O'Malley.qmd" contains the full report
+"final_report_O'Malley.qmd" contains the full report and code 
 
 Open the .qmd file in RStudio and render to html to see the interactive features of the visuals 
 
